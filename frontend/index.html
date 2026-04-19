@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Impossible Game 🎰</title>
+
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Segoe UI", sans-serif;
+}
+
+body {
+  height: 100vh;
+  background: radial-gradient(circle at top, #1e293b, #020617);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.container {
+  text-align: center;
+}
+
+h1 {
+  margin-bottom: 20px;
+  font-size: 32px;
+}
+
+
+.slot {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  margin-bottom: 25px;
+}
+
+.reel {
+  width: 80px;
+  height: 80px;
+  background: #111;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  box-shadow: inset 0 0 10px black, 0 0 20px rgba(0,0,0,0.5);
+}
+
+.spinning {
+  animation: spin 0.1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: translateY(-5px); }
+  50% { transform: translateY(5px); }
+  100% { transform: translateY(-5px); }
+}
+
+.inputs {
+  margin-bottom: 15px;
+}
+
+input {
+  width: 80px;
+  padding: 10px;
+  margin: 5px;
+  border-radius: 8px;
+  border: none;
+  text-align: center;
+  font-size: 16px;
+}
+
+button {
+  padding: 12px 20px;
+  margin: 5px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: 0.3s;
+}
+
+button:hover {
+  opacity: 0.85;
+}
+
+.play {
+  background: #22c55e;
+}
+
+.tries {
+  background: #3b82f6;
+}
+
+.reset {
+  background: #f59e0b;
+}
+
+.result {
+  margin-top: 20px;
+  font-size: 20px;
+  min-height: 40px;
+}
+
+.win {
+  color: #22c55e;
+  animation: glow 0.5s infinite alternate;
+}
+
+.lose {
+  color: #ef4444;
+}
+
+@keyframes glow {
+  from { text-shadow: 0 0 5px #22c55e; }
+  to { text-shadow: 0 0 20px #22c55e; }
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+  <h1>🎰 Impossible Game</h1>
+
+  <div class="slot">
+    <div class="reel" id="r1">?</div>
+    <div class="reel" id="r2">?</div>
+    <div class="reel" id="r3">?</div>
+  </div>
+
+  
+  <div class="inputs" id="p1-area">
+    <p>👤 Player 1, escolha seu número de 1 a 100</p>
+    <input type="number" id="player1" placeholder="1-100">
+    <br>
+    <button class="play" onclick="confirmP1()">Confirmar</button>
+  </div>
+
+  
+  <div class="inputs" id="p2-area" style="display:none;">
+    <p>👤 Player 2, sua vez</p>
+    <input type="number" id="player2" placeholder="1-100">
+    <br>
+    <button class="play" onclick="playGame()">🎯 Jogar</button>
+  </div>
+
+  <button class="tries" onclick="getTries()">📊 Tentativas</button>
+  <button class="reset" onclick="resetGame()">🔄 Novo Jogo</button>
+
+  <div id="result" class="result"></div>
+</div>
+
+<script>
+const API_URL = "http://127.0.0.1:8000";
+
+let savedP1 = null;
+
+const reels = [
+  document.getElementById("r1"),
+  document.getElementById("r2"),
+  document.getElementById("r3")
+];
+
+function randomSpin() {
+  return Math.floor(Math.random() * 3) + 1;
+}
+
+function startAnimation() {
+  reels.forEach(r => r.classList.add("spinning"));
+
+  const interval = setInterval(() => {
+    reels.forEach(r => r.innerText = randomSpin());
+  }, 80);
+
+  return interval;
+}
+
+function stopAnimation(interval, p1, p2, machine) {
+  clearInterval(interval);
+
+  setTimeout(() => reels[0].innerText = p1, 200);
+  setTimeout(() => reels[1].innerText = p2, 400);
+  setTimeout(() => {
+    reels[2].innerText = machine;
+    reels.forEach(r => r.classList.remove("spinning"));
+  }, 600);
+}
+
+
+function confirmP1() {
+  const p1 = document.getElementById("player1").value;
+  const resultDiv = document.getElementById("result");
+
+  if (!p1 || p1 < 1 || p1 > 100) {
+    resultDiv.innerText = "Player 1: escolha de 1 a 100!";
+    return;
+  }
+
+  savedP1 = p1;
+
+  document.getElementById("p1-area").style.display = "none";
+  document.getElementById("p2-area").style.display = "block";
+
+  resultDiv.innerText = "Agora é a vez do Player 2 👀";
+}
+
+
+async function playGame() {
+  const p2 = document.getElementById("player2").value;
+  const resultDiv = document.getElementById("result");
+
+  if (!p2 || p2 < 1 || p2 > 100) {
+    resultDiv.innerText = "Player 2: escolha de 1 a 100!";
+    return;
+  }
+
+  const spin = startAnimation();
+
+  try {
+    const response = await fetch(`${API_URL}/game?player1=${savedP1}&player2=${p2}`, {
+      method: "POST"
+    });
+
+    const data = await response.json();
+    const machine = data.result.match(/\d+/)[0];
+
+    stopAnimation(spin, savedP1, p2, machine);
+
+    setTimeout(() => {
+      resultDiv.innerText = data.result;
+
+      if (data.result.includes("win")) {
+        resultDiv.className = "result win";
+      } else {
+        resultDiv.className = "result lose";
+      }
+    }, 700);
+
+  } catch (err) {
+    resultDiv.innerText = "Erro na API 😢";
+  }
+}
+
+
+async function getTries() {
+  const resultDiv = document.getElementById("result");
+
+  const response = await fetch(`${API_URL}/tries`);
+  const data = await response.json();
+
+  resultDiv.className = "result";
+  resultDiv.innerText = `📊 Tentativas: ${data.tries}`;
+}
+
+
+function resetGame() {
+  savedP1 = null;
+
+  document.getElementById("player1").value = "";
+  document.getElementById("player2").value = "";
+
+  document.getElementById("p1-area").style.display = "block";
+  document.getElementById("p2-area").style.display = "none";
+
+  document.getElementById("result").innerText = "";
+
+  reels.forEach(r => r.innerText = "?");
+}
+</script>
+
+</body>
+</html>
